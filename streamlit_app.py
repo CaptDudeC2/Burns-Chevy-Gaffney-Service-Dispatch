@@ -32,6 +32,16 @@ def load_csv(gid):
     return pd.read_csv(url, dtype=str).fillna("")
 
 
+def load_call_list():
+    """Load the Parts Here call list, skipping the banner row if present."""
+    df = load_csv(GID_PARTS_NO_VEHICLE)
+    if "RO #" not in df.columns and len(df):
+        df = df.copy()
+        df.columns = df.iloc[0]
+        df = df.iloc[1:].reset_index(drop=True)
+    return df.fillna("")
+
+
 def _section_for(label):
     """Map a section label row to a canonical section name (labels vary across tabs)."""
     up = label.strip().upper()
@@ -176,7 +186,7 @@ with tab_parts:
         "customers back in and their vehicles finished."
     )
     try:
-        call = load_csv(GID_PARTS_NO_VEHICLE)
+        call = load_call_list()
     except Exception as exc:
         st.error(f"Couldn't load the parts call list: {exc}")
         st.stop()
