@@ -32,22 +32,39 @@ def load_csv(gid):
     return pd.read_csv(url, dtype=str).fillna("")
 
 
+def _section_for(label):
+    """Map a section label row to a canonical section name (labels vary across tabs)."""
+    up = label.strip().upper()
+    if up.startswith("APPOINTMENT"):
+        return "appointments"
+    if up.startswith("CARRYOVER"):
+        return "carryovers"
+    if "PARTS" in up:
+        return "parts"
+    if up.startswith("TOTALS"):
+        return None
+    return "unknown"
+
+
 def parse_tech_tab(df):
-    """Split a technician tab into its APPOINTMENTS / CARRYOVERS / PARTS HERE sections."""
-    rows = df.values.tolist()
-    markers = {"APPOINTMENTS", "CARRYOVERS", "PARTS HERE - WORK NEEDS COMPLETE"}
-    sections = {m: [] for m in markers}
+    """Split a technician tab into appointments / carryovers / parts sections."""
+    sections = {"appointments": [], "carryovers": [], "parts": []}
     current = None
     header = None
-    for row in rows:
+    for row in df.values.tolist():
         cells = [str(c).strip() for c in row]
-        first = cells[0].upper()
-        if first in markers:
-            current, header = first, None
+        if all(c == "" for c in cells):
+            continue
+        kind = _section_for(cells[0])
+        if kind == "unknown":
+            pass
+        elif kind is None:
+            current, header = None, None
+            continue
+        else:
+            current, header = kind, None
             continue
         if current is None:
-            continue
-        if all(c == "" for c in cells):
             continue
         if header is None:
             header = cells
@@ -125,9 +142,9 @@ with tab_techs:
         st.error(f"Couldn't load {tech}'s tab: {exc}")
         st.stop()
 
-    t_appts = sections["APPOINTMENTS"]
-    t_carry = sections["CARRYOVERS"]
-    t_parts = sections["PARTS HERE - WORK NEEDS COMPLETE"]
+    t_appts = sections["appointments"]
+    t_carry = sections["carryovers"]
+    t_parts = sections["parts"]
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Appointments", len(t_appts))
