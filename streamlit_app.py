@@ -102,6 +102,7 @@ def sort_by_time(df):
 st.set_page_config(page_title="Gaffney Service Dispatch", page_icon="🧰", layout="wide")
 st.title("🧰 Gaffney Service Dispatch")
 st.caption("Live from the Dispatch workbook. Read-only - all edits happen in the Google Sheet.")
+st.link_button("🗓️ Attendance — who's here / out today", "https://burns-attendance.streamlit.app/")
 
 top_col, _ = st.columns([1, 6])
 if top_col.button("↻ Refresh now"):
