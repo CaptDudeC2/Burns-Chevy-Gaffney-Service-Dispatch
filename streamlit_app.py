@@ -15,7 +15,7 @@ GID_APPOINTMENTS = "773153683"
 GID_PARTS_NO_VEHICLE = "708183503"
 TECH_TABS = {
     "Angel Estrada": "321059552",
-    "Matt Wilson": "92856338",
+    "Ta'Jio Reeves": "2073650491",
     "Brad Lotze": "947740012",
     "Emmett Knapp": "1361272945",
     "Daniel Estrada": "1855565445",
