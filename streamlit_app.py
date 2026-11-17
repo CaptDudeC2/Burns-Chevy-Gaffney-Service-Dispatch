@@ -7,6 +7,9 @@ views, carryovers, parts-here work, and the parts-on-shelf call list.
 This app is READ ONLY - all editing stays in the Google Sheet.
 """
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pandas as pd
 import streamlit as st
 
@@ -40,6 +43,130 @@ def load_call_list():
         df.columns = df.iloc[0]
         df = df.iloc[1:].reset_index(drop=True)
     return df.fillna("")
+
+
+# ---- Call Outs and Time Off (from the Attendance Calendar sheet) ----
+ATT_SHEET_ID = "1PZPpWbfWYGi1SqjvEMtAPpxukRTxnrnlqQWHNSZ4pRI"
+# Month tab name -> gid. Tabs are fixed Sept 2026 - Dec 2027.
+ATT_TAB_GIDS = {
+    "September 2026": "1000",
+    "October 2026": "1001",
+    "November 2026": "1002",
+    "December 2026": "1003",
+    "January 2027": "1004",
+    "February 2027": "1005",
+    "March 2027": "1006",
+    "April 2027": "1007",
+    "May 2027": "1008",
+    "June 2027": "1009",
+    "July 2027": "1010",
+    "August 2027": "1011",
+    "September 2027": "1012",
+    "October 2027": "1013",
+    "November 2027": "1014",
+    "December 2027": "1015",
+    "Closed Dates": "1016",
+}
+# (first name as written in calendar notes, full name, role)
+ATT_ROSTER = [
+    ("Danny", "Daniel Estrada", "Technician"),
+    ("Sammy", "Samuel Mosqueda", "Technician"),
+    ("Angel", "Angel Estrada", "Technician"),
+    ("Eugene", "Eugene Philpotts", "Technician"),
+    ("Emmett", "Emmett Knapp", "Technician"),
+    ("Mitchell", "Mitchell Lanier", "Technician"),
+    ("Brad", "Bradley Lotze", "Technician"),
+    ("Ta'Jio", "Ta'Jio Reeves", "Technician"),
+    ("Felicia", "Felicia Foster", "BDC"),
+    ("Dylan", "Dylan Patton", "Advisor"),
+    ("Jessica", "Jessica Schurz", "Advisor"),
+]
+# keyword (lowercase) -> display reason, checked in order
+ATT_REASONS = [
+    ("called out", "Called out"),
+    ("call out", "Called out"),
+    ("callout", "Called out"),
+    ("pto", "PTO"),
+    ("vacation", "Vacation"),
+    ("sick", "Sick"),
+    ("bereavement", "Bereavement"),
+    ("funeral", "Bereavement"),
+    ("jury duty", "Jury duty"),
+    ("day off", "Day off"),
+    ("off", "Day off"),
+]
+
+
+@st.cache_data(ttl=300)
+def load_att_tab(gid):
+    """Load one Attendance Calendar tab as a dataframe of strings (no header)."""
+    url = (
+        f"https://docs.google.com/spreadsheets/d/{ATT_SHEET_ID}"
+        f"/export?format=csv&gid={gid}"
+    )
+    return pd.read_csv(url, header=None, dtype=str).fillna("")
+
+
+def att_month_weeks(df):
+    """Parse a calendar month tab into weeks of (day_number, [notes]) cells."""
+    rows = df.values.tolist()
+    weeks = []
+    i, n = 0, len(rows)
+    while i < n:
+        cells = [str(c).strip() for c in rows[i]]
+        if sum(c.isdigit() for c in cells) >= 3:
+            week = []
+            for col in range(7):
+                c = cells[col] if col < len(cells) else ""
+                if c.isdigit():
+                    notes = []
+                    for r in rows[i + 1 : i + 5]:
+                        if col < len(r):
+                            v = str(r[col]).strip()
+                            if v:
+                                notes.append(v)
+                    week.append((int(c), notes))
+                else:
+                    week.append(None)
+            weeks.append(week)
+            i += 5
+        else:
+            i += 1
+    return weeks
+
+
+def att_parse_note(note):
+    """Return (full_name, reason) for a calendar note. Name may be None."""
+    low = note.lower()
+    reason = None
+    for key, label in ATT_REASONS:
+        if key in low:
+            reason = label
+            break
+    if not reason:
+        return None, None
+    for first, full, _role in ATT_ROSTER:
+        if first.lower() in low or full.lower() in low:
+            return full, reason
+    return None, reason
+
+
+def att_closed_map():
+    """ISO date -> holiday name from the calendar's Closed Dates tab."""
+    try:
+        df = load_att_tab(ATT_TAB_GIDS["Closed Dates"])
+    except Exception:
+        return {}
+    out = {}
+    for row in df.values.tolist():
+        if len(row) >= 1 and str(row[0]).strip():
+            name = (
+                str(row[1]).strip()
+                if len(row) > 1 and str(row[1]).strip()
+                else "Closed"
+            )
+            out[str(row[0]).strip()] = name
+    return out
 
 
 def _section_for(label):
@@ -102,7 +229,48 @@ def sort_by_time(df):
 st.set_page_config(page_title="Gaffney Service Dispatch", page_icon="🧰", layout="wide")
 st.title("🧰 Gaffney Service Dispatch")
 st.caption("Live from the Dispatch workbook. Read-only - all edits happen in the Google Sheet.")
-st.link_button("🗓️ Attendance — who's here / out today", "https://burns-attendance.streamlit.app/")
+st.markdown(
+    '<div style="background:#B91C1C;color:#fff;border-radius:8px;'
+    "padding:12px 16px;text-align:center;font-size:19px;font-weight:700;"
+    'line-height:1.35;margin:4px 0 14px 0;">'
+    "ATTENTION: Due to the Holiday next week, Payroll will close on "
+    "Tuesday the 24th. Please be sure to have all of your Flag times "
+    "in by Tuesday the 24th end of day.</div>",
+    unsafe_allow_html=True,
+)
+
+# ---- Call Outs and Time Off (today, from the Attendance Calendar) ----
+st.markdown("### Call Outs and Time Off")
+try:
+    today = datetime.now(ZoneInfo("America/New_York")).date()
+    st.caption(today.strftime("%A, %B %d, %Y"))
+    closed_today = att_closed_map().get(today.isoformat())
+    if today.weekday() == 6 or closed_today:
+        st.warning(f"Shop closed — {closed_today or 'Sunday'}")
+    else:
+        weeks = att_month_weeks(load_att_tab(ATT_TAB_GIDS[today.strftime("%B %Y")]))
+        todays_notes = []
+        for week in weeks:
+            for cell in week:
+                if cell and cell[0] == today.day:
+                    todays_notes = cell[1]
+        outs, unnamed = {}, []
+        for note in todays_notes:
+            name, reason = att_parse_note(note)
+            if name:
+                outs[name] = reason
+            elif reason:
+                unnamed.append(f"{note} ({reason})")
+        if outs or unnamed:
+            for _f, full, role in ATT_ROSTER:
+                if full in outs:
+                    st.write(f"**{full}** — {outs[full]} ({role})")
+            for u in unnamed:
+                st.write(u)
+        else:
+            st.write("Everyone is in today.")
+except Exception as exc:
+    st.caption(f"Couldn't load the Attendance Calendar: {exc}")
 
 top_col, _ = st.columns([1, 6])
 if top_col.button("↻ Refresh now"):
