@@ -131,9 +131,14 @@ with tab_board:
         techs = sorted(t for t in day_df["Technician"].unique() if t)
         tech_sel = f1.multiselect("Technician", techs, default=techs)
         statuses = sorted(s for s in day_df["Status"].unique() if s)
+        if (day_df["Status"] == "").any():
+            statuses = statuses + ["(No status)"]
         status_sel = f2.multiselect("Status", statuses, default=statuses)
 
-        day_df = day_df[day_df["Technician"].isin(tech_sel) & day_df["Status"].isin(status_sel)]
+        status_mask = day_df["Status"].isin(s for s in status_sel if s != "(No status)")
+        if "(No status)" in status_sel:
+            status_mask = status_mask | (day_df["Status"] == "")
+        day_df = day_df[day_df["Technician"].isin(tech_sel) & status_mask]
         day_df = sort_by_time(day_df)
 
         m1, m2, m3 = st.columns(3)
