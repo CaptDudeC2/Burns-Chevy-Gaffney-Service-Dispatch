@@ -229,15 +229,6 @@ def sort_by_time(df):
 st.set_page_config(page_title="Gaffney Service Dispatch", page_icon="🧰", layout="wide")
 st.title("🧰 Gaffney Service Dispatch")
 st.caption("Live from the Dispatch workbook. Read-only - all edits happen in the Google Sheet.")
-st.markdown(
-    '<div style="background:#B91C1C;color:#fff;border-radius:8px;'
-    "padding:12px 16px;text-align:center;font-size:19px;font-weight:700;"
-    'line-height:1.35;margin:4px 0 14px 0;">'
-    "ATTENTION: Due to the Holiday next week, Payroll will close on "
-    "Tuesday the 24th. Please be sure to have all of your Flag times "
-    "in by Tuesday the 24th end of day.</div>",
-    unsafe_allow_html=True,
-)
 
 # ---- Call Outs and Time Off (today, from the Attendance Calendar) ----
 st.markdown("### Call Outs and Time Off")
